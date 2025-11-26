@@ -1,0 +1,15 @@
+[project]
+name = "dify-workflow-executor"
+version = "0.1.0"
+description = "CLI tool for batch execution of Dify Workflow API"
+requires-python = ">=3.13"
+dependencies = [
+    "dify-client>=0.1.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+]
