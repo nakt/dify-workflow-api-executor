@@ -1,0 +1,6 @@
+id,user_name,query,language
+req001,Alice,What is AI?,English
+req002,Bob,AIとは何ですか,Japanese
+req003,Charlie,Explain machine learning,English
+req004,David,深層学習について教えて,Japanese
+req005,Eve,What are neural networks?,English
