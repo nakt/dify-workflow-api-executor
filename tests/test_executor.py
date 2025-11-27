@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-# メインスクリプトをインポート
+# Import main script
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from dify_workflow_executor import (
     Config,
@@ -24,15 +24,15 @@ from dify_workflow_executor import (
 
 
 # =============================================================================
-# Config クラスのテスト
+# Tests for Config class
 # =============================================================================
 
 
 class TestConfig:
-    """Config クラスのテスト"""
+    """Tests for Config class"""
 
     def test_from_env_success(self, monkeypatch):
-        """環境変数から正しく設定を読み込めること"""
+        """Successfully load configuration from environment variables"""
         monkeypatch.setenv("DIFY_API_KEY", "test-api-key")
         monkeypatch.setenv("DIFY_WORKFLOW_ID", "test-workflow-id")
         monkeypatch.setenv("MAX_RETRIES", "5")
@@ -45,8 +45,8 @@ class TestConfig:
         assert config.api_base_url == "https://api.dify.ai/v1"
 
     def test_from_env_missing_api_key(self, monkeypatch, tmp_path):
-        """APIキーが未設定の場合にエラーが発生すること"""
-        # .envファイルの影響を受けないようにカレントディレクトリを変更
+        """Error occurs when API key is not set"""
+        # Change current directory to avoid .env file interference
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("DIFY_API_KEY", raising=False)
         monkeypatch.setenv("DIFY_WORKFLOW_ID", "test-workflow-id")
@@ -55,8 +55,8 @@ class TestConfig:
             Config.from_env()
 
     def test_from_env_missing_workflow_id(self, monkeypatch, tmp_path):
-        """Workflow IDが未設定の場合にエラーが発生すること"""
-        # .envファイルの影響を受けないようにカレントディレクトリを変更
+        """Error occurs when Workflow ID is not set"""
+        # Change current directory to avoid .env file interference
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("DIFY_API_KEY", "test-api-key")
         monkeypatch.delenv("DIFY_WORKFLOW_ID", raising=False)
@@ -66,15 +66,15 @@ class TestConfig:
 
 
 # =============================================================================
-# CSVReader クラスのテスト
+# Tests for CSVReader class
 # =============================================================================
 
 
 class TestCSVReader:
-    """CSVReader クラスのテスト"""
+    """Tests for CSVReader class"""
 
     def test_read_rows_success(self, tmp_path):
-        """CSVファイルを正しく読み込めること"""
+        """Successfully read CSV file"""
         csv_file = tmp_path / "test.csv"
         csv_file.write_text(
             "id,name,query\n" "req001,Alice,What is AI?\n" "req002,Bob,Explain ML\n",
@@ -91,7 +91,7 @@ class TestCSVReader:
         assert rows[0]["inputs"]["query"] == "What is AI?"
 
     def test_read_rows_with_filter(self, tmp_path):
-        """IDフィルターが正しく動作すること"""
+        """ID filter works correctly"""
         csv_file = tmp_path / "test.csv"
         csv_file.write_text(
             "id,name,query\n"
@@ -109,7 +109,7 @@ class TestCSVReader:
         assert rows[1]["id"] == "req003"
 
     def test_read_rows_missing_id_column(self, tmp_path):
-        """idカラムがない場合にエラーが発生すること"""
+        """Error occurs when id column is missing"""
         csv_file = tmp_path / "test.csv"
         csv_file.write_text("name,query\n" "Alice,What is AI?\n", encoding="utf-8")
 
@@ -118,21 +118,21 @@ class TestCSVReader:
             list(reader.read_rows())
 
     def test_read_rows_file_not_found(self):
-        """ファイルが存在しない場合にエラーが発生すること"""
+        """Error occurs when file does not exist"""
         with pytest.raises(FileNotFoundError):
             CSVReader("nonexistent.csv")
 
 
 # =============================================================================
-# JSONLWriter クラスのテスト
+# Tests for JSONLWriter class
 # =============================================================================
 
 
 class TestJSONLWriter:
-    """JSONLWriter クラスのテスト"""
+    """Tests for JSONLWriter class"""
 
     def test_write_result(self, tmp_path):
-        """結果を正しくJSONL形式で書き込めること"""
+        """Successfully write results in JSONL format"""
         output_file = tmp_path / "output.jsonl"
 
         with JSONLWriter(str(output_file)) as writer:
@@ -145,7 +145,7 @@ class TestJSONLWriter:
                 }
             )
 
-        # ファイルの内容を確認
+        # Verify file contents
         with open(output_file, "r", encoding="utf-8-sig") as f:
             line = f.readline()
             result = json.loads(line)
@@ -153,29 +153,29 @@ class TestJSONLWriter:
             assert result["status"] == "success"
 
     def test_write_multiple_results(self, tmp_path):
-        """複数の結果を書き込めること"""
+        """Successfully write multiple results"""
         output_file = tmp_path / "output.jsonl"
 
         with JSONLWriter(str(output_file)) as writer:
             writer.write_result({"id": "req001", "status": "success"})
             writer.write_result({"id": "req002", "status": "success"})
 
-        # ファイルの行数を確認
+        # Verify number of lines in file
         with open(output_file, "r", encoding="utf-8-sig") as f:
             lines = f.readlines()
             assert len(lines) == 2
 
 
 # =============================================================================
-# RetryFileManager クラスのテスト
+# Tests for RetryFileManager class
 # =============================================================================
 
 
 class TestRetryFileManager:
-    """RetryFileManager クラスのテスト"""
+    """Tests for RetryFileManager class"""
 
     def test_add_and_load_failed_ids(self, tmp_path):
-        """失敗IDを追加して読み込めること"""
+        """Successfully add and load failed IDs"""
         retry_file = tmp_path / "test.retry"
         manager = RetryFileManager(str(retry_file))
 
@@ -186,7 +186,7 @@ class TestRetryFileManager:
         assert failed_ids == ["req001", "req002"]
 
     def test_remove_id(self, tmp_path):
-        """IDを削除できること"""
+        """Successfully remove ID"""
         retry_file = tmp_path / "test.retry"
         manager = RetryFileManager(str(retry_file))
 
@@ -200,7 +200,7 @@ class TestRetryFileManager:
         assert failed_ids == ["req001", "req003"]
 
     def test_clear(self, tmp_path):
-        """ファイルを削除できること"""
+        """Successfully delete file"""
         retry_file = tmp_path / "test.retry"
         manager = RetryFileManager(str(retry_file))
 
@@ -211,7 +211,7 @@ class TestRetryFileManager:
         assert not retry_file.exists()
 
     def test_load_empty_file(self, tmp_path):
-        """存在しないファイルから読み込んだ場合に空リストが返ること"""
+        """Return empty list when loading from nonexistent file"""
         retry_file = tmp_path / "nonexistent.retry"
         manager = RetryFileManager(str(retry_file))
 
@@ -220,15 +220,15 @@ class TestRetryFileManager:
 
 
 # =============================================================================
-# RetryManager クラスのテスト
+# Tests for RetryManager class
 # =============================================================================
 
 
 class TestRetryManager:
-    """RetryManager クラスのテスト"""
+    """Tests for RetryManager class"""
 
     def test_should_retry_retryable_error(self):
-        """リトライ可能なエラーの場合にTrueを返すこと"""
+        """Return True for retryable errors"""
         manager = RetryManager(max_retries=3, initial_delay=1.0, max_delay=60.0)
 
         assert manager.should_retry("RateLimitError", attempt=0) is True
@@ -236,40 +236,40 @@ class TestRetryManager:
         assert manager.should_retry("TimeoutError", attempt=2) is True
 
     def test_should_retry_non_retryable_error(self):
-        """リトライ不可能なエラーの場合にFalseを返すこと"""
+        """Return False for non-retryable errors"""
         manager = RetryManager(max_retries=3, initial_delay=1.0, max_delay=60.0)
 
         assert manager.should_retry("AuthenticationError", attempt=0) is False
         assert manager.should_retry("ValidationError", attempt=1) is False
 
     def test_should_retry_max_attempts_exceeded(self):
-        """最大リトライ回数を超えた場合にFalseを返すこと"""
+        """Return False when max retry attempts exceeded"""
         manager = RetryManager(max_retries=3, initial_delay=1.0, max_delay=60.0)
 
         assert manager.should_retry("APIError", attempt=3) is False
 
     def test_get_delay_exponential_backoff(self):
-        """エクスポネンシャルバックオフで遅延時間が増加すること"""
+        """Delay time increases with exponential backoff"""
         manager = RetryManager(max_retries=5, initial_delay=1.0, max_delay=60.0)
 
         delay0 = manager.get_delay(0)
         delay1 = manager.get_delay(1)
         delay2 = manager.get_delay(2)
 
-        # 指数関数的に増加するが、jitterがあるので厳密な比較はしない
+        # Increases exponentially, but not strict comparison due to jitter
         assert 1.0 <= delay0 <= 1.2
         assert 2.0 <= delay1 <= 2.2
         assert 4.0 <= delay2 <= 4.2
 
     def test_get_delay_max_cap(self):
-        """最大遅延時間を超えないこと"""
+        """Does not exceed maximum delay time"""
         manager = RetryManager(max_retries=10, initial_delay=1.0, max_delay=10.0)
 
-        delay = manager.get_delay(10)  # 1024秒になるはずだが
+        delay = manager.get_delay(10)  # Would be 1024s but capped
         assert delay <= 10.1  # max_delay + jitter
 
     def test_is_fatal_error(self):
-        """致命的エラーを正しく判定すること"""
+        """Correctly determine fatal errors"""
         manager = RetryManager(max_retries=3, initial_delay=1.0, max_delay=60.0)
 
         assert manager.is_fatal_error("AuthenticationError") is True
@@ -278,15 +278,15 @@ class TestRetryManager:
 
 
 # =============================================================================
-# ProgressTracker クラスのテスト
+# Tests for ProgressTracker class
 # =============================================================================
 
 
 class TestProgressTracker:
-    """ProgressTracker クラスのテスト"""
+    """Tests for ProgressTracker class"""
 
     def test_update_success(self):
-        """成功カウントが更新されること"""
+        """Success count is updated"""
         tracker = ProgressTracker(total_rows=10)
 
         tracker.update(success=True)
@@ -294,7 +294,7 @@ class TestProgressTracker:
         assert tracker.failed_count == 0
 
     def test_update_failure(self):
-        """失敗カウントが更新されること"""
+        """Failure count is updated"""
         tracker = ProgressTracker(total_rows=10)
 
         tracker.update(success=False)
@@ -302,25 +302,25 @@ class TestProgressTracker:
         assert tracker.failed_count == 1
 
     def test_format_time(self):
-        """時間フォーマットが正しいこと"""
+        """Time format is correct"""
         assert ProgressTracker._format_time(30) == "30s"
         assert ProgressTracker._format_time(90) == "1m 30s"
         assert ProgressTracker._format_time(3661) == "1h 1m"
 
 
 # =============================================================================
-# DifyWorkflowExecutor クラスのテスト
+# Tests for DifyWorkflowExecutor class
 # =============================================================================
 
 
 class TestDifyWorkflowExecutor:
-    """DifyWorkflowExecutor クラスのテスト"""
+    """Tests for DifyWorkflowExecutor class"""
 
     def test_execute_success(self, monkeypatch):
-        """ワークフローが正常に実行されること"""
+        """Workflow executes successfully"""
         config = Config(api_key="test-key", workflow_id="test-workflow")
 
-        # WorkflowClientのモック
+        # Mock WorkflowClient
         mock_response = Mock()
         mock_response.raise_for_status = Mock()
         mock_response.json = Mock(
@@ -343,7 +343,7 @@ class TestDifyWorkflowExecutor:
             assert result["outputs"]["outputs"]["result"] == "AI is..."
 
     def test_execute_failure(self, monkeypatch):
-        """ワークフロー実行が失敗した場合にエラー情報を返すこと"""
+        """Return error information when workflow execution fails"""
         config = Config(api_key="test-key", workflow_id="test-workflow")
 
         with patch("dify_workflow_executor.WorkflowClient") as mock_client_class:
@@ -362,16 +362,16 @@ class TestDifyWorkflowExecutor:
 
 
 # =============================================================================
-# 統合テスト
+# Integration tests
 # =============================================================================
 
 
 class TestBatchProcessorIntegration:
-    """BatchProcessor の統合テスト"""
+    """Integration tests for BatchProcessor"""
 
     @pytest.fixture
     def mock_config(self):
-        """テスト用のConfig"""
+        """Config for testing"""
         return Config(
             api_key="test-key",
             workflow_id="test-workflow",
@@ -381,17 +381,17 @@ class TestBatchProcessorIntegration:
         )
 
     def test_process_all_success(self, tmp_path, mock_config):
-        """全行が成功する場合のテスト"""
-        # 入力CSV
+        """Test when all rows succeed"""
+        # Input CSV
         csv_file = tmp_path / "input.csv"
         csv_file.write_text(
             "id,query\n" "req001,What is AI?\n" "req002,Explain ML\n", encoding="utf-8"
         )
 
-        # 出力JSONL
+        # Output JSONL
         output_file = tmp_path / "output.jsonl"
 
-        # WorkflowClientのモックを作成
+        # Create mock for WorkflowClient
         mock_response = Mock()
         mock_response.raise_for_status = Mock()
         mock_response.json = Mock(
@@ -414,19 +414,19 @@ class TestBatchProcessorIntegration:
                 wait_seconds=0,
             )
 
-        # 結果を確認
+        # Verify results
         with open(output_file, "r", encoding="utf-8-sig") as f:
             lines = f.readlines()
             assert len(lines) == 2
 
-            # 各行がJSONとしてパースできることを確認
+            # Verify each line can be parsed as JSON
             for line in lines:
                 result = json.loads(line)
                 assert result["status"] == "success"
                 assert "id" in result
                 assert result["outputs"]["outputs"]["result"] == "Test answer"
 
-        # .retryファイルが存在しないことを確認
+        # Verify .retry file does not exist
         retry_file = Path(f"{output_file}.retry")
         assert not retry_file.exists()
 

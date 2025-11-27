@@ -22,23 +22,23 @@ from dify_client import DifyClient
 
 
 # =============================================================================
-# WorkflowClient クラス (dify_clientに存在しないため独自実装)
+# WorkflowClient class (custom implementation as it doesn't exist in dify_client)
 # =============================================================================
 
 
 class WorkflowClient(DifyClient):
-    """Dify Workflow API用のクライアント"""
+    """Client for Dify Workflow API"""
 
     def run_workflow(
         self, inputs: Dict[str, Any], response_mode: str = "blocking", user: str = "default"
     ):
         """
-        ワークフローを実行
+        Execute workflow
 
         Args:
-            inputs: ワークフローへの入力パラメータ
+            inputs: Input parameters for the workflow
             response_mode: "blocking" or "streaming"
-            user: ユーザー識別子
+            user: User identifier
 
         Returns:
             requests.Response object
@@ -56,7 +56,7 @@ class WorkflowClient(DifyClient):
         )
 
 
-# ロギング設定
+# Logging configuration
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -69,13 +69,13 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# 1. Config クラス
+# 1. Config class
 # =============================================================================
 
 
 @dataclass
 class Config:
-    """環境変数から設定を読み込むクラス"""
+    """Class for loading configuration from environment variables"""
 
     api_key: str
     workflow_id: str
@@ -87,7 +87,7 @@ class Config:
 
     @classmethod
     def from_env(cls) -> "Config":
-        """環境変数から設定を読み込む"""
+        """Load configuration from environment variables"""
         load_dotenv()
 
         api_key = os.getenv("DIFY_API_KEY")
@@ -109,7 +109,7 @@ class Config:
         )
 
     def validate(self) -> None:
-        """設定の妥当性を検証"""
+        """Validate configuration"""
         logger.info("Validating configuration...")
         logger.info(f"  API Base URL: {self.api_base_url}")
         logger.info(f"  Workflow ID: {self.workflow_id}")
@@ -119,12 +119,12 @@ class Config:
 
 
 # =============================================================================
-# 2. CSVReader クラス
+# 2. CSVReader class
 # =============================================================================
 
 
 class CSVReader:
-    """CSV入力を処理するクラス"""
+    """Class for processing CSV input"""
 
     def __init__(self, csv_path: str):
         self.csv_path = Path(csv_path)
@@ -137,10 +137,10 @@ class CSVReader:
         self, filter_ids: Optional[List[str]] = None
     ) -> Iterator[Dict[str, Any]]:
         """
-        CSVを1行ずつ読み込み、辞書形式で返す
+        Read CSV row by row and return as dictionary
 
         Args:
-            filter_ids: 指定されたIDのみを読み込む（リトライモード用）
+            filter_ids: Read only specified IDs (for retry mode)
 
         Yields:
             {
@@ -164,30 +164,30 @@ class CSVReader:
                     logger.warning("Skipping row with empty ID")
                     continue
 
-                # フィルターが指定されている場合、該当IDのみを処理
+                # Process only matching IDs if filter is specified
                 if filter_ids is not None and row_id not in filter_ids:
                     continue
 
-                # idカラムを含めて全てのカラムを入力パラメータとして使用
+                # Use all columns including id as input parameters
                 inputs = dict(row)
 
                 yield {"id": row_id, "inputs": inputs}
 
 
 # =============================================================================
-# 3. JSONLWriter クラス
+# 3. JSONLWriter class
 # =============================================================================
 
 
 class JSONLWriter:
-    """JSONL形式で結果を出力するクラス"""
+    """Class for outputting results in JSONL format"""
 
     def __init__(self, output_path: str):
         self.output_path = Path(output_path)
         self.file_handle: Optional[Any] = None
 
     def __enter__(self):
-        # UTF-8 with BOMで開く
+        # Open with UTF-8 BOM encoding
         self.file_handle = open(self.output_path, "a", encoding="utf-8-sig")
         return self
 
@@ -197,7 +197,7 @@ class JSONLWriter:
 
     def write_result(self, result: Dict[str, Any]) -> None:
         """
-        実行結果を1行ずつJSONL形式で書き込み
+        Write execution results line by line in JSONL format
 
         Args:
             result: {
@@ -219,24 +219,24 @@ class JSONLWriter:
 
 
 # =============================================================================
-# 4. RetryFileManager クラス
+# 4. RetryFileManager class
 # =============================================================================
 
 
 class RetryFileManager:
-    """失敗したIDを.retryファイルで管理するクラス"""
+    """Class for managing failed IDs in .retry file"""
 
     def __init__(self, retry_file_path: str):
         self.retry_file_path = Path(retry_file_path)
 
     def add_failed_id(self, row_id: str) -> None:
-        """失敗IDを追記"""
+        """Append failed ID"""
         with open(self.retry_file_path, "a", encoding="utf-8-sig") as f:
             f.write(row_id + "\n")
             f.flush()
 
     def load_failed_ids(self) -> List[str]:
-        """失敗IDリストを読込"""
+        """Load list of failed IDs"""
         if not self.retry_file_path.exists():
             return []
 
@@ -244,34 +244,34 @@ class RetryFileManager:
             return [line.strip() for line in f if line.strip()]
 
     def remove_id(self, row_id: str) -> None:
-        """指定されたIDを削除"""
+        """Remove specified ID"""
         if not self.retry_file_path.exists():
             return
 
-        # 既存のIDを読み込み
+        # Load existing IDs
         failed_ids = self.load_failed_ids()
 
-        # 指定されたIDを除外
+        # Exclude specified ID
         updated_ids = [id for id in failed_ids if id != row_id]
 
-        # ファイルを上書き
+        # Overwrite file
         with open(self.retry_file_path, "w", encoding="utf-8-sig") as f:
             for id in updated_ids:
                 f.write(id + "\n")
 
     def clear(self) -> None:
-        """.retryファイルを削除"""
+        """Delete .retry file"""
         if self.retry_file_path.exists():
             self.retry_file_path.unlink()
 
 
 # =============================================================================
-# 5. DifyWorkflowExecutor クラス
+# 5. DifyWorkflowExecutor class
 # =============================================================================
 
 
 class DifyWorkflowExecutor:
-    """Dify Workflow APIのラッパークラス"""
+    """Wrapper class for Dify Workflow API"""
 
     def __init__(self, config: Config):
         self.config = config
@@ -281,7 +281,7 @@ class DifyWorkflowExecutor:
         self, inputs: Dict[str, Any], user: str = "batch-executor"
     ) -> Dict[str, Any]:
         """
-        ワークフローを同期実行
+        Execute workflow synchronously
 
         Returns:
             {
@@ -297,14 +297,14 @@ class DifyWorkflowExecutor:
                 inputs=inputs, response_mode="blocking", user=user
             )
 
-            # レスポンスのステータスコードをチェック
+            # Check response status code
             response.raise_for_status()
 
-            # JSONレスポンスをパース
+            # Parse JSON response
             result = response.json()
 
-            # Workflow APIの場合、dataフィールドに結果が入る
-            # レスポンス形式: {"workflow_run_id": "...", "task_id": "...", "data": {...}, ...}
+            # For Workflow API, results are in the data field
+            # Response format: {"workflow_run_id": "...", "task_id": "...", "data": {...}, ...}
             workflow_run_id = result.get("workflow_run_id", "")
             outputs = result.get("data", {})
 
@@ -332,14 +332,14 @@ class DifyWorkflowExecutor:
 
 
 # =============================================================================
-# 6. RetryManager クラス
+# 6. RetryManager class
 # =============================================================================
 
 
 class RetryManager:
-    """エクスポネンシャルバックオフによるリトライを管理するクラス"""
+    """Class for managing retries with exponential backoff"""
 
-    # リトライ不可能なエラータイプ
+    # Non-retryable error types
     NON_RETRYABLE_ERRORS = {"AuthenticationError", "ValidationError"}
 
     def __init__(self, max_retries: int, initial_delay: float, max_delay: float):
@@ -348,7 +348,7 @@ class RetryManager:
         self.max_delay = max_delay
 
     def should_retry(self, error_type: str, attempt: int) -> bool:
-        """リトライすべきかを判定"""
+        """Determine if should retry"""
         if error_type in self.NON_RETRYABLE_ERRORS:
             return False
 
@@ -356,7 +356,7 @@ class RetryManager:
 
     def get_delay(self, attempt: int) -> float:
         """
-        エクスポネンシャルバックオフで待機時間を計算
+        Calculate wait time with exponential backoff
 
         Formula: min(initial_delay * (2 ** attempt) + jitter, max_delay)
         """
@@ -367,17 +367,17 @@ class RetryManager:
         return min(delay + jitter, self.max_delay)
 
     def is_fatal_error(self, error_type: str) -> bool:
-        """バッチ処理全体を中断すべきエラーかを判定"""
+        """Determine if error should abort entire batch processing"""
         return error_type == "AuthenticationError"
 
 
 # =============================================================================
-# 7. ProgressTracker クラス
+# 7. ProgressTracker class
 # =============================================================================
 
 
 class ProgressTracker:
-    """実行進捗を表示するクラス"""
+    """Class for displaying execution progress"""
 
     def __init__(self, total_rows: int):
         self.total_rows = total_rows
@@ -386,7 +386,7 @@ class ProgressTracker:
         self.start_time = time.time()
 
     def update(self, success: bool) -> None:
-        """進捗を更新"""
+        """Update progress"""
         if success:
             self.success_count += 1
         else:
@@ -395,7 +395,7 @@ class ProgressTracker:
         current = self.success_count + self.failed_count
         percentage = (current / self.total_rows * 100) if self.total_rows > 0 else 0
 
-        # ETA計算
+        # Calculate ETA
         elapsed = time.time() - self.start_time
         if current > 0:
             avg_time = elapsed / current
@@ -405,7 +405,7 @@ class ProgressTracker:
         else:
             eta_str = "N/A"
 
-        # プログレスバー
+        # Progress bar
         bar_length = 20
         filled_length = (
             int(bar_length * current / self.total_rows) if self.total_rows > 0 else 0
@@ -420,8 +420,8 @@ class ProgressTracker:
         )
 
     def display_summary(self) -> None:
-        """最終結果サマリーを表示"""
-        print()  # 改行
+        """Display final result summary"""
+        print()  # Newline
         total_time = time.time() - self.start_time
         total_processed = self.success_count + self.failed_count
 
@@ -436,7 +436,7 @@ class ProgressTracker:
 
     @staticmethod
     def _format_time(seconds: float) -> str:
-        """秒数を読みやすい形式に変換"""
+        """Convert seconds to readable format"""
         if seconds < 60:
             return f"{int(seconds)}s"
         elif seconds < 3600:
@@ -450,12 +450,12 @@ class ProgressTracker:
 
 
 # =============================================================================
-# 8. BatchProcessor クラス
+# 8. BatchProcessor class
 # =============================================================================
 
 
 class BatchProcessor:
-    """バッチ処理全体を統括するクラス"""
+    """Class for orchestrating entire batch processing"""
 
     def __init__(self, config: Config):
         self.config = config
@@ -472,18 +472,18 @@ class BatchProcessor:
         wait_seconds: float = 0,
     ) -> None:
         """
-        CSVファイルをバッチ処理
+        Batch process CSV file
 
         Args:
-            csv_path: 入力CSVファイルパス
-            output_path: 出力JSONLファイルパス
-            retry_mode: Trueの場合、既存の.retryから失敗行のみを再実行
-            wait_seconds: 各リクエスト間の待機時間（秒）
+            csv_path: Input CSV file path
+            output_path: Output JSONL file path
+            retry_mode: If True, re-execute only failed rows from existing .retry file
+            wait_seconds: Wait time between requests (seconds)
         """
         retry_file_path = f"{output_path}.retry"
         retry_manager = RetryFileManager(retry_file_path)
 
-        # リトライモードの場合、失敗IDを読み込む
+        # Load failed IDs in retry mode
         filter_ids = None
         if retry_mode:
             filter_ids = retry_manager.load_failed_ids()
@@ -492,10 +492,10 @@ class BatchProcessor:
                 return
             logger.info(f"Retry mode: Processing {len(filter_ids)} failed IDs")
 
-        # CSVリーダーを初期化
+        # Initialize CSV reader
         csv_reader = CSVReader(csv_path)
 
-        # 総行数を取得（プログレス表示用）
+        # Get total rows (for progress display)
         rows_list = list(csv_reader.read_rows(filter_ids))
         total_rows = len(rows_list)
 
@@ -505,10 +505,10 @@ class BatchProcessor:
 
         logger.info(f"Starting batch processing: {total_rows} rows")
 
-        # プログレストラッカーを初期化
+        # Initialize progress tracker
         progress = ProgressTracker(total_rows)
 
-        # JSONLライターを開く
+        # Open JSONL writer
         with JSONLWriter(output_path) as writer:
             for i, row in enumerate(rows_list):
                 row_id = row["id"]
@@ -516,35 +516,35 @@ class BatchProcessor:
 
                 logger.info(f"Processing row {i+1}/{total_rows}: ID={row_id}")
 
-                # 1行を処理（リトライ含む）
+                # Process one row (including retries)
                 result = self._process_row(row_id, inputs, retry_count=0)
 
                 if result["status"] == "success":
-                    # 成功した結果をJSONLに書き込み
+                    # Write successful result to JSONL
                     writer.write_result(result)
-                    # .retryファイルから削除
+                    # Remove from .retry file
                     retry_manager.remove_id(row_id)
                     progress.update(success=True)
                 else:
-                    # 失敗した場合、.retryファイルに記録
+                    # Record to .retry file if failed
                     retry_manager.add_failed_id(row_id)
                     progress.update(success=False)
 
-                    # 致命的なエラー（認証エラー）の場合、バッチ処理を中断
+                    # Abort batch processing on fatal errors (authentication error)
                     if self.retry_manager.is_fatal_error(result.get("error_type", "")):
                         logger.error(
                             f"Fatal error occurred: {result['error_type']}. Aborting batch process."
                         )
                         break
 
-                # 最後の行以外は待機
+                # Wait between requests except for last row
                 if i < total_rows - 1 and wait_seconds > 0:
                     time.sleep(wait_seconds)
 
-        # サマリー表示
+        # Display summary
         progress.display_summary()
 
-        # 残りの失敗IDを確認
+        # Check remaining failed IDs
         remaining_failures = retry_manager.load_failed_ids()
         if remaining_failures:
             logger.info(
@@ -552,14 +552,14 @@ class BatchProcessor:
             )
         else:
             logger.info("All rows processed successfully!")
-            # .retryファイルを削除
+            # Delete .retry file
             retry_manager.clear()
 
     def _process_row(
         self, row_id: str, inputs: Dict[str, Any], retry_count: int
     ) -> Dict[str, Any]:
         """
-        1行を処理（リトライ含む）
+        Process one row (including retries)
 
         Returns:
             {
@@ -585,21 +585,21 @@ class BatchProcessor:
                 "retry_count": retry_count,
             }
 
-        # 失敗した場合、リトライを検討
+        # Consider retry if failed
         error_type = result["error_type"]
 
         if self.retry_manager.should_retry(error_type, retry_count):
-            # リトライ待機
+            # Wait before retry
             delay = self.retry_manager.get_delay(retry_count)
             logger.warning(
                 f"Retrying row ID={row_id} after {delay:.1f}s (attempt {retry_count + 1}/{self.config.max_retries})"
             )
             time.sleep(delay)
 
-            # 再帰的にリトライ
+            # Retry recursively
             return self._process_row(row_id, inputs, retry_count + 1)
 
-        # リトライ不可能な場合、失敗として返す
+        # Return as failed if not retryable
         logger.error(
             f"Row ID={row_id} failed after {retry_count} retries: {error_type}"
         )
@@ -617,12 +617,12 @@ class BatchProcessor:
 
 
 # =============================================================================
-# 9. CLI インターフェース
+# 9. CLI interface
 # =============================================================================
 
 
 def main():
-    """メイン関数"""
+    """Main function"""
     parser = argparse.ArgumentParser(
         description="Dify Workflow Batch Executor",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -647,21 +647,21 @@ def main():
     args = parser.parse_args()
 
     try:
-        # 設定を読み込み
+        # Load configuration
         config = Config.from_env()
 
-        # バリデーションのみの場合
+        # Validate only mode
         if args.validate:
             config.validate()
             return 0
 
-        # 入力・出力パスのチェック
+        # Check input/output paths
         if not args.input or not args.output:
             parser.error(
                 "--input and --output are required (unless --validate is specified)"
             )
 
-        # バッチ処理を実行
+        # Execute batch processing
         processor = BatchProcessor(config)
         processor.process(
             csv_path=args.input,
