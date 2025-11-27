@@ -13,12 +13,47 @@ import random
 import sys
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
 from dotenv import load_dotenv
-from dify_client import CompletionClient
+from dify_client import DifyClient
+
+
+# =============================================================================
+# WorkflowClient クラス (dify_clientに存在しないため独自実装)
+# =============================================================================
+
+
+class WorkflowClient(DifyClient):
+    """Dify Workflow API用のクライアント"""
+
+    def run_workflow(
+        self, inputs: Dict[str, Any], response_mode: str = "blocking", user: str = "default"
+    ):
+        """
+        ワークフローを実行
+
+        Args:
+            inputs: ワークフローへの入力パラメータ
+            response_mode: "blocking" or "streaming"
+            user: ユーザー識別子
+
+        Returns:
+            requests.Response object
+        """
+        data = {
+            "inputs": inputs,
+            "response_mode": response_mode,
+            "user": user,
+        }
+        return self._send_request(
+            "POST",
+            "/workflows/run",
+            json=data,
+            stream=True if response_mode == "streaming" else False,
+        )
 
 
 # ロギング設定
@@ -133,8 +168,8 @@ class CSVReader:
                 if filter_ids is not None and row_id not in filter_ids:
                     continue
 
-                # idカラムを除外して入力パラメータを作成
-                inputs = {k: v for k, v in row.items() if k != "id"}
+                # idカラムを含めて全てのカラムを入力パラメータとして使用
+                inputs = dict(row)
 
                 yield {"id": row_id, "inputs": inputs}
 
@@ -240,7 +275,7 @@ class DifyWorkflowExecutor:
 
     def __init__(self, config: Config):
         self.config = config
-        self.client = CompletionClient(config.api_key)
+        self.client = WorkflowClient(config.api_key)
 
     def execute(
         self, inputs: Dict[str, Any], user: str = "batch-executor"
@@ -258,7 +293,7 @@ class DifyWorkflowExecutor:
             }
         """
         try:
-            response = self.client.create_completion_message(
+            response = self.client.run_workflow(
                 inputs=inputs, response_mode="blocking", user=user
             )
 
@@ -268,16 +303,14 @@ class DifyWorkflowExecutor:
             # JSONレスポンスをパース
             result = response.json()
 
-            # CompletionClientの場合、answerフィールドに結果が入る
-            answer = result.get("answer", "")
-            message_id = result.get("message_id", "")
-
-            # 全体のレスポンスをoutputsとして保存
-            outputs = {"answer": answer, "metadata": result.get("metadata", {})}
+            # Workflow APIの場合、dataフィールドに結果が入る
+            # レスポンス形式: {"workflow_run_id": "...", "task_id": "...", "data": {...}, ...}
+            workflow_run_id = result.get("workflow_run_id", "")
+            outputs = result.get("data", {})
 
             return {
                 "success": True,
-                "workflow_run_id": message_id,
+                "workflow_run_id": workflow_run_id,
                 "outputs": outputs,
                 "error": None,
                 "error_type": None,
@@ -548,7 +581,7 @@ class BatchProcessor:
                 "inputs": inputs,
                 "outputs": result["outputs"],
                 "workflow_run_id": result["workflow_run_id"],
-                "executed_at": datetime.utcnow().isoformat() + "Z",
+                "executed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 "retry_count": retry_count,
             }
 
@@ -578,7 +611,7 @@ class BatchProcessor:
             "workflow_run_id": None,
             "error": result["error"],
             "error_type": error_type,
-            "executed_at": datetime.utcnow().isoformat() + "Z",
+            "executed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "retry_count": retry_count,
         }
 
