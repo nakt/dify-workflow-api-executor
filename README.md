@@ -1,50 +1,50 @@
 # Dify Workflow API Executor
 
-Dify Workflow APIをバッチ実行するためのPython製CLIツール。CSVファイルを入力として受け取り、各行をDify Workflowに投げて、結果をJSONL形式で出力します。
+A Python CLI tool for batch execution of Dify Workflow API. It accepts CSV files as input, processes each row through Dify Workflow, and outputs results in JSONL format.
 
-## 背景
+## Background
 
-DifyのWorkflowバッチ処理機能に個人的に以下のような課題があったため、自前で API 実行してうまくハンドリングする本ツールを作成した。
+This tool was created to address personal challenges with Dify's built-in Workflow batch processing feature:
 
-- エラー発生時のリトライ制御が不十分
-- 処理件数が増えると動作が不安定になることがある
-- エラーハンドリングやログの詳細な制御が難しい
+- Insufficient retry control when errors occur
+- Unstable behavior when processing large volumes
+- Difficult to control detailed error handling and logging
 
-## 主要機能
+## Key Features
 
-- CSVファイルからのバッチ処理
-- Workflow API実行
-- 実行結果のJSONL形式での出力
-- 自動リトライ
-- 失敗したIDの記録とリトライ実行
+- Batch processing from CSV files
+- Workflow API execution
+- Output results in JSONL format
+- Automatic retry with exponential backoff
+- Failed ID tracking and retry execution
 
-## クイックスタート
+## Quick Start
 
-### インストール
+### Installation
 
 ```bash
-# リポジトリをクローン
+# Clone the repository
 git clone <repository-url>
 cd dify-workflow-api-executor
 
-# 依存パッケージをインストール
+# Install dependencies
 uv sync
 
-# 環境変数を設定
+# Set up environment variables
 cp .env.example .env
-# .envファイルを編集してAPIキーとWorkflow IDを設定
+# Edit .env file to configure API key and Workflow ID
 ```
 
-### 環境変数設定
+### Environment Variables
 
-`.env` ファイルに以下の設定を記述:
+Configure the following in your `.env` file:
 
 ```env
-# 必須設定
+# Required settings
 DIFY_API_KEY=your-api-key-here
 DIFY_WORKFLOW_ID=your-workflow-id-here
 
-# オプション設定
+# Optional settings
 DIFY_API_BASE_URL=https://api.dify.ai/v1
 MAX_RETRIES=3
 INITIAL_RETRY_DELAY=1
@@ -52,41 +52,41 @@ MAX_RETRY_DELAY=60
 TIMEOUT=300
 ```
 
-### 基本的な使い方
+### Basic Usage
 
 ```bash
-# CSVファイルを入力としてバッチ実行
+# Batch execution with CSV input
 uv run dify_workflow_executor.py --input data.csv --output results.jsonl
 
-# 各リクエスト間に待機時間を設定（秒単位）
+# Set wait time between requests (in seconds)
 uv run dify_workflow_executor.py --input data.csv --output results.jsonl --wait 2
 
-# 失敗したIDのみをリトライ実行
+# Retry only failed IDs
 uv run dify_workflow_executor.py --input data.csv --output results.jsonl --retry
 
-# 環境変数が正しく設定されているか確認
+# Validate environment configuration
 uv run dify_workflow_executor.py --validate
 ```
 
-## コマンドライン引数
+## Command Line Arguments
 
-| 引数 | 短縮形 | 必須/オプション | デフォルト値 | 説明 |
-|------|--------|----------------|--------------|------|
-| `--input` | `-i` | 必須 | - | 入力CSVファイルのパス |
-| `--output` | `-o` | 必須 | - | 出力JSONLファイルのパス |
-| `--retry` | - | オプション | False | 失敗IDのみをリトライ実行 |
-| `--wait` | `-w` | オプション | 0 | 各リクエスト間の待機時間（秒） |
-| `--validate` | - | オプション | False | 設定の検証のみ実行 |
+| Argument | Short | Required/Optional | Default | Description |
+|----------|-------|-------------------|---------|-------------|
+| `--input` | `-i` | Required | - | Path to input CSV file |
+| `--output` | `-o` | Required | - | Path to output JSONL file |
+| `--retry` | - | Optional | False | Retry only failed IDs |
+| `--wait` | `-w` | Optional | 0 | Wait time between requests (seconds) |
+| `--validate` | - | Optional | False | Validate configuration only |
 
-## CSVフォーマット
+## CSV Format
 
-### 必須要件
+### Requirements
 
-- UTF-8エンコーディング
-- ヘッダー行が必須
-- 1列目に一意の `id` カラムが必須
+- UTF-8 encoding
+- Header row is required
+- First column must be unique `id` column
 
-### サンプル
+### Example
 
 ```csv
 id,user_name,query,language
@@ -95,42 +95,51 @@ req002,Bob,AIとは何ですか,Japanese
 req003,Charlie,Explain machine learning,English
 ```
 
-ヘッダー名（`id` 以外）がそのままワークフロー入力パラメータ名として使用されます。
+Header names (including `id`) are used as workflow input parameter names.
 
-## 出力フォーマット
+## Output Format
 
-JSONL（JSON Lines）形式で出力されます。UTF-8 BOM付きで保存されます。
+Results are output in JSONL (JSON Lines) format with UTF-8 BOM encoding.
 
-### 成功時の出力例
+### Success Output Example
 
 ```jsonl
-{"id": "req001", "status": "success", "inputs": {"user_name": "Alice", "query": "What is AI?"}, "outputs": {"answer": "..."}, "workflow_run_id": "...", "executed_at": "2025-11-26T12:34:56Z", "retry_count": 0}
+{"id": "req001", "status": "success", "inputs": {"id": "req001", "user_name": "Alice", "query": "What is AI?"}, "outputs": {"result": "..."}, "workflow_run_id": "...", "executed_at": "2025-11-26T12:34:56Z", "retry_count": 0}
 ```
 
-### 失敗時の処理
+### Failed ID Handling
 
-失敗したIDは `.retry` ファイルに記録されます（例: `results.jsonl.retry`）。
+Failed IDs are recorded in a `.retry` file (e.g., `results.jsonl.retry`):
 
 ```
 req002
 req005
 ```
 
-リトライ実行時は `--retry` オプションを使用します。
+Use the `--retry` option to retry failed IDs.
 
-## 開発
+## Development
 
-### テストの実行
+### Running Tests
+
+To run tests, first install development dependencies:
 
 ```bash
-# 全てのテストを実行
+# Install dev dependencies
+uv sync --extra dev
+
+# Run all tests
 uv run pytest
 
-# カバレッジレポート付き
+# With coverage report
 uv run pytest --cov=dify_workflow_executor --cov-report=html
 ```
 
-### 依存パッケージ
+**Note**: Some tests may need updates to reflect recent changes from Completion API to Workflow API migration.
+
+### Dependencies
+
+The project requires Python 3.13+ and the following dependencies:
 
 ```toml
 [project]

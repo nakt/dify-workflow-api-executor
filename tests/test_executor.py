@@ -44,16 +44,20 @@ class TestConfig:
         assert config.max_retries == 5
         assert config.api_base_url == "https://api.dify.ai/v1"
 
-    def test_from_env_missing_api_key(self, monkeypatch):
+    def test_from_env_missing_api_key(self, monkeypatch, tmp_path):
         """APIキーが未設定の場合にエラーが発生すること"""
+        # .envファイルの影響を受けないようにカレントディレクトリを変更
+        monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("DIFY_API_KEY", raising=False)
         monkeypatch.setenv("DIFY_WORKFLOW_ID", "test-workflow-id")
 
         with pytest.raises(ValueError, match="DIFY_API_KEY is required"):
             Config.from_env()
 
-    def test_from_env_missing_workflow_id(self, monkeypatch):
+    def test_from_env_missing_workflow_id(self, monkeypatch, tmp_path):
         """Workflow IDが未設定の場合にエラーが発生すること"""
+        # .envファイルの影響を受けないようにカレントディレクトリを変更
+        monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("DIFY_API_KEY", "test-api-key")
         monkeypatch.delenv("DIFY_WORKFLOW_ID", raising=False)
 
@@ -82,9 +86,9 @@ class TestCSVReader:
 
         assert len(rows) == 2
         assert rows[0]["id"] == "req001"
+        assert rows[0]["inputs"]["id"] == "req001"
         assert rows[0]["inputs"]["name"] == "Alice"
         assert rows[0]["inputs"]["query"] == "What is AI?"
-        assert "id" not in rows[0]["inputs"]
 
     def test_read_rows_with_filter(self, tmp_path):
         """IDフィルターが正しく動作すること"""
@@ -316,32 +320,35 @@ class TestDifyWorkflowExecutor:
         """ワークフローが正常に実行されること"""
         config = Config(api_key="test-key", workflow_id="test-workflow")
 
-        # CompletionClientのモック
+        # WorkflowClientのモック
         mock_response = Mock()
         mock_response.raise_for_status = Mock()
         mock_response.json = Mock(
-            return_value={"answer": "AI is...", "message_id": "msg_123"}
+            return_value={
+                "workflow_run_id": "wf_123",
+                "data": {"outputs": {"result": "AI is..."}}
+            }
         )
 
-        with patch("dify_workflow_executor.CompletionClient") as mock_client_class:
+        with patch("dify_workflow_executor.WorkflowClient") as mock_client_class:
             mock_client = Mock()
-            mock_client.create_completion_message = Mock(return_value=mock_response)
+            mock_client.run_workflow = Mock(return_value=mock_response)
             mock_client_class.return_value = mock_client
 
             executor = DifyWorkflowExecutor(config)
             result = executor.execute({"query": "What is AI?"})
 
             assert result["success"] is True
-            assert result["workflow_run_id"] == "msg_123"
-            assert result["outputs"]["answer"] == "AI is..."
+            assert result["workflow_run_id"] == "wf_123"
+            assert result["outputs"]["outputs"]["result"] == "AI is..."
 
     def test_execute_failure(self, monkeypatch):
         """ワークフロー実行が失敗した場合にエラー情報を返すこと"""
         config = Config(api_key="test-key", workflow_id="test-workflow")
 
-        with patch("dify_workflow_executor.CompletionClient") as mock_client_class:
+        with patch("dify_workflow_executor.WorkflowClient") as mock_client_class:
             mock_client = Mock()
-            mock_client.create_completion_message = Mock(
+            mock_client.run_workflow = Mock(
                 side_effect=Exception("API Error")
             )
             mock_client_class.return_value = mock_client
@@ -384,16 +391,19 @@ class TestBatchProcessorIntegration:
         # 出力JSONL
         output_file = tmp_path / "output.jsonl"
 
-        # CompletionClientのモックを作成
+        # WorkflowClientのモックを作成
         mock_response = Mock()
         mock_response.raise_for_status = Mock()
         mock_response.json = Mock(
-            return_value={"answer": "Test answer", "message_id": "msg_123"}
+            return_value={
+                "workflow_run_id": "wf_123",
+                "data": {"outputs": {"result": "Test answer"}}
+            }
         )
 
-        with patch("dify_workflow_executor.CompletionClient") as mock_client_class:
+        with patch("dify_workflow_executor.WorkflowClient") as mock_client_class:
             mock_client = Mock()
-            mock_client.create_completion_message = Mock(return_value=mock_response)
+            mock_client.run_workflow = Mock(return_value=mock_response)
             mock_client_class.return_value = mock_client
 
             processor = BatchProcessor(mock_config)
@@ -414,7 +424,7 @@ class TestBatchProcessorIntegration:
                 result = json.loads(line)
                 assert result["status"] == "success"
                 assert "id" in result
-                assert result["outputs"]["answer"] == "Test answer"
+                assert result["outputs"]["outputs"]["result"] == "Test answer"
 
         # .retryファイルが存在しないことを確認
         retry_file = Path(f"{output_file}.retry")
