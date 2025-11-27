@@ -108,15 +108,6 @@ class Config:
             timeout=int(os.getenv("TIMEOUT", "300")),
         )
 
-    def validate(self) -> None:
-        """Validate configuration"""
-        logger.info("Validating configuration...")
-        logger.info(f"  API Base URL: {self.api_base_url}")
-        logger.info(f"  Workflow ID: {self.workflow_id}")
-        logger.info(f"  Max Retries: {self.max_retries}")
-        logger.info(f"  Timeout: {self.timeout}s")
-        logger.info("Configuration is valid")
-
 
 # =============================================================================
 # 2. CSVReader class
@@ -640,9 +631,6 @@ def main():
         default=0,
         help="Wait time between requests in seconds (default: 0)",
     )
-    parser.add_argument(
-        "--validate", action="store_true", help="Validate configuration only"
-    )
 
     args = parser.parse_args()
 
@@ -650,16 +638,9 @@ def main():
         # Load configuration
         config = Config.from_env()
 
-        # Validate only mode
-        if args.validate:
-            config.validate()
-            return 0
-
         # Check input/output paths
         if not args.input or not args.output:
-            parser.error(
-                "--input and --output are required (unless --validate is specified)"
-            )
+            parser.error("--input and --output are required")
 
         # Execute batch processing
         processor = BatchProcessor(config)

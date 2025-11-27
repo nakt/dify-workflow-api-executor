@@ -63,9 +63,6 @@ uv run dify_workflow_executor.py --input data.csv --output results.jsonl --wait 
 
 # Retry only failed IDs
 uv run dify_workflow_executor.py --input data.csv --output results.jsonl --retry
-
-# Validate environment configuration
-uv run dify_workflow_executor.py --validate
 ```
 
 ## Command Line Arguments
@@ -76,7 +73,6 @@ uv run dify_workflow_executor.py --validate
 | `--output` | `-o` | Required | - | Path to output JSONL file |
 | `--retry` | - | Optional | False | Retry only failed IDs |
 | `--wait` | `-w` | Optional | 0 | Wait time between requests (seconds) |
-| `--validate` | - | Optional | False | Validate configuration only |
 
 ## CSV Format
 
